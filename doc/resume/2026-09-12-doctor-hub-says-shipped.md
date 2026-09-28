@@ -45,6 +45,12 @@ A Codex agent on Windows reported that the v1.6.0 held Stop waiter blocked their
 
 **Lesson for the next harness (#72, AntiGravity):** before shipping a Stop-hook waiter, establish whether that harness runs Stop hooks synchronously, and if so do not hold at all.
 
+## 2026-09-26 to 09-28 — v1.7.0 (pablo_fantomas) and v1.7.1 (#77)
+
+- **v1.7.0**, built and released by `pablo_fantomas` at the owner's request, reviewed here: hooks launch through `uv run` with uv's absolute path resolved at install; the hook command's floors are dedicated constants (`staleness.HOOK_FLOOR` / `HOOK_PYTHON`), so trust holds; `doctor` flags stale Codex hooks (#74); the served waking section is harness-agnostic, guarded by `test_wake_boundary`. Filed from that review: **#75** (release gate probes a command without `--python`) and **#76** (live smoke suite assumes an open hub).
+- **v1.7.1 (#77, closed)**: the wake watermark and waiter lock are per engine (`wake._engine_for` / `_state_path`); the legacy file seeds each engine once; the installer ignores `/.agent-mailbox-seen*.json` and `/.agent-mailbox-wake*.lock` (never ignored in users' projects before); `doctor` reports them. Reported by **jakekinchen, the first outside contributor**. `a86647c`, deployed, proved with the released client, announced.
+- **#78 (idle Codex wake) researched, not built**: `codex queue` / experimental `thread/queue/add` starts a turn only when the thread is idle — no waiting hook needed; design sketch and open questions on the issue. Next step proposed: a hand-run spike in a throwaway Codex session (idle / mid-turn / interrupted; TUI and Desktop).
+
 ## Also open
 
 - #65: **idle wake live-verified 2026-09-14** by four omp sessions on Windows (coordinator `mirco_abrahamsson`; `gyeongsug_rascon` observed directly). Remaining: the mid-turn `followUp` check, requested from that group by mail; close #65 when it reports. espen_luo's macOS run is welcome, not blocking.
