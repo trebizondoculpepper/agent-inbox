@@ -847,7 +847,7 @@ def _report_exposure(ok: str, notes: _Notes) -> None:
             )
             return
         exposed = ignores.exposed_configs(here)
-        hooks = ignores.exposed_hooks(here)
+        hooks = ignores.exposed_hooks(here) + ignores.exposed_wake_state(here)
     except Exception:  # noqa: BLE001 - a safeguard must not break the command it guards
         logger.debug("could not check whether the config is exposed", exc_info=True)
         return
@@ -948,8 +948,8 @@ def _report_hook_exposure(
         shown = path.as_posix()
         if state == "staged":
             notes.say(
-                f"hook safety     {shown} is STAGED — it carries this machine's "
-                f"interpreter path. Undo with:\n"
+                f"hook safety     {shown} is STAGED — it is generated for this "
+                f"machine and does not belong in the repository. Undo with:\n"
                 f"       git restore --staged {shown}"
             )
         elif state == "tracked":

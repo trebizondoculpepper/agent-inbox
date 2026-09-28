@@ -497,18 +497,41 @@ def install_for(
     here writes a file the harness never reads and tells somebody they are reachable.
     """
     if harness == "claude":
-        return install(root, command, rewake=rewake)
-    if harness == "opencode":
-        return install_opencode(root, command)
-    if harness == "omp":
-        return install_omp(root, command)
-    if harness == "codex":
-        return install_codex(root, command, rewake=rewake)
-    raise NoWakingHere(
-        f"{harness or 'this harness'} has no waking mechanism I know how to install. "
-        "Nothing has been written. Keep checking your inbox at the start of a turn — "
-        "that always works, and is what every agent did before hooks existed."
-    )
+        path = install(root, command, rewake=rewake)
+    elif harness == "opencode":
+        path = install_opencode(root, command)
+    elif harness == "omp":
+        path = install_omp(root, command)
+    elif harness == "codex":
+        path = install_codex(root, command, rewake=rewake)
+    else:
+        raise NoWakingHere(
+            f"{harness or 'this harness'} has no waking mechanism I know how to "
+            "install. Nothing has been written. Keep checking your inbox at the start "
+            "of a turn — that always works, and is what every agent did before hooks "
+            "existed."
+        )
+    keep_wake_state_out_of_git(root)
+    return path
+
+
+def keep_wake_state_out_of_git(root: Path) -> None:
+    """Ignore the waiter's state files the hooks will write here (#77). Best effort.
+
+    Every wake hook writes an announce-once watermark and, while waiting, a lock into
+    the project root. We never ignored them, so a user's `git add -A` committed them;
+    per-engine names, new with #77, would have been the same. Two anchored globs over
+    our own prefix cover every engine, and the legacy files too.
+    """
+    from agent_inbox import ignores
+
+    for rule, sample in ignores.WAKE_STATE_RULES:
+        try:
+            ignores.ensure_ignored(
+                root / sample, root, rule=rule, note=ignores.WAKE_STATE_NOTE
+            )
+        except Exception as exc:  # noqa: BLE001 - the hook is installed; this is hygiene
+            logger.debug("could not add an ignore rule %s: %s", rule, exc)
 
 
 def keep_out_of_git(path: Path, root: Path) -> str:

@@ -27,6 +27,7 @@ intended.
 
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -41,11 +42,45 @@ from typing import Any
 from agent_inbox.backoff import SETTLED_AFTER, reconnect_delay
 from agent_inbox.client import HubClient, SseParser, load_config, project_root
 
-#: Where the announce-once watermark lives — one file per project, beside the config.
+#: Where the announce-once watermark lives, beside the config. **One per engine**, as
+#: ``.agent-mailbox-seen.<engine>.json``; this unkeyed name is the legacy file, still
+#: used when no engine can be resolved and read once as a seed on upgrade (#77).
 WATERMARK_NAME = ".agent-mailbox-seen.json"
 
-#: A per-project guard so an asyncRewake Stop hook does not spawn many pollers.
+#: A guard so an asyncRewake Stop hook does not spawn many pollers — **one per engine**,
+#: as ``.agent-mailbox-wake.<engine>.lock``, for the same reason.
 LOCK_NAME = ".agent-mailbox-wake.lock"
+
+#: Engine names safe to put in a filename. Anything else keeps the legacy name rather
+#: than risk a path built from whatever `--engine` was given.
+_SAFE_ENGINE = re.compile(r"[A-Za-z0-9_-]{1,40}")
+
+
+def _engine_for(engine: str | None) -> str | None:
+    """Whose waking state this is: the engine named, else the one detected, else none.
+
+    **Identities are per engine, and so is what each has been told** (#77, reported by
+    jakekinchen with a four-line reproduction). The watermark and the waiter lock were
+    kept once per project, so two engines in one checkout — Claude with `--rewake` and
+    Codex, say — each saved *its own* unread set over the other's. After every Codex
+    turn, Claude's still-unread mail looked new again and an idle Claude session was
+    re-woken for it: about nine wakes for the same five messages in one afternoon. The
+    lock had the matching fault: only one engine's waiter could hold the project, and
+    the other exited at once and was never woken.
+    """
+    from agent_inbox.client import detect_engine
+
+    resolved = engine or detect_engine()
+    return resolved if resolved and _SAFE_ENGINE.fullmatch(resolved) else None
+
+
+def _state_path(root: Path, legacy: str, engine: str | None) -> Path:
+    """``.agent-mailbox-seen.json`` becomes ``.agent-mailbox-seen.claude.json``."""
+    if not engine:
+        return root / legacy
+    stem, _, ext = legacy.rpartition(".")
+    return root / f"{stem}.{engine}.{ext}"
+
 
 #: How many senders to name before collapsing the rest into "+N more".
 _MAX_LISTED = 5
@@ -341,17 +376,37 @@ class ArrivalStream:
 # -- I/O wrapper: totally fail-silent --------------------------------------
 
 
-def _load_seen(root: Path) -> frozenset[str]:
+def _read_watermark(path: Path) -> frozenset[str] | None:
+    """The ids in one watermark file; ``None`` when there is no such file."""
     try:
-        data = json.loads((root / WATERMARK_NAME).read_text())
-        return frozenset(str(x) for x in data.get("seen", []))
+        data = json.loads(path.read_text())
+    except FileNotFoundError:
+        return None
+    except Exception:  # noqa: BLE001 - a corrupt watermark is "nothing seen"
+        return frozenset()
+    return frozenset(str(x) for x in data.get("seen", []))
+
+
+def _load_seen(root: Path, engine: str | None = None) -> frozenset[str]:
+    """This engine's watermark — or, the first time, the legacy shared one.
+
+    **Seeded from the legacy file once, deliberately.** Without it, the first turn after
+    upgrading would announce every unread message again, the very burst #77 is about.
+    The cost is bounded: a broadcast the other engine was told about and this one was
+    not may go unannounced once. It is still in the inbox; only the wake is missed.
+    """
+    try:
+        own = _read_watermark(_state_path(root, WATERMARK_NAME, engine))
+        if own is None and engine:
+            own = _read_watermark(root / WATERMARK_NAME)
+        return own or frozenset()
     except Exception:  # noqa: BLE001 - a missing/corrupt watermark is "nothing seen"
         return frozenset()
 
 
-def _save_seen(root: Path, seen: frozenset[str]) -> None:
+def _save_seen(root: Path, seen: frozenset[str], engine: str | None = None) -> None:
     try:
-        (root / WATERMARK_NAME).write_text(
+        _state_path(root, WATERMARK_NAME, engine).write_text(
             json.dumps({"seen": sorted(seen)}), encoding="utf-8"
         )
     except Exception:  # noqa: BLE001 - never let a watermark write break a turn
@@ -409,8 +464,9 @@ _REARM_EXIT = 2
 
 
 def _run_once(event: str, root: Path, engine: str | None = None) -> int:
-    result = wake_response(event, _fetch_unread(root, engine), _load_seen(root))
-    _save_seen(root, result.seen)
+    key = _engine_for(engine)
+    result = wake_response(event, _fetch_unread(root, engine), _load_seen(root, key))
+    _save_seen(root, result.seen, key)
     _emit(result)
     return result.exit_code
 
@@ -479,8 +535,10 @@ def _release_lock(path: Path) -> None:
 
 
 @contextmanager
-def _single_waiter(root: Path, *, max_age: float) -> Iterator[bool]:
-    path = root / LOCK_NAME
+def _single_waiter(
+    root: Path, *, max_age: float, engine: str | None = None
+) -> Iterator[bool]:
+    path = _state_path(root, LOCK_NAME, engine)
     acquired = _acquire_lock(path, max_age=max_age)
     try:
         yield acquired
@@ -532,7 +590,9 @@ def _wait_for_wake(
     poll_interval = max(0.1, poll_interval)
     wait_timeout = max(0.0, wait_timeout)
     deadline = time.monotonic() + wait_timeout
-    with _single_waiter(root, max_age=wait_timeout + 60.0) as acquired:
+    with _single_waiter(
+        root, max_age=wait_timeout + 60.0, engine=_engine_for(engine)
+    ) as acquired:
         if not acquired:
             return 0
         # After the lock, never before: the lock is what keeps this to one waiter per

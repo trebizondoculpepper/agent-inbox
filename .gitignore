@@ -92,3 +92,7 @@ graphify-out/
 # omp (oh-my-pi) project config: mcp.json may carry identity, extensions/ carries an
 # interpreter path written by install-hook — same rule as .opencode/.
 .omp/
+
+# agent-inbox wake state, per engine (#77): the watermark and the waiter lock.
+/.agent-mailbox-seen*.json
+/.agent-mailbox-wake*.lock

@@ -53,6 +53,19 @@ HOOK_FILES: tuple[str, ...] = (
 #: does not carry it is somebody else's, and not ours to report.
 HOOK_MARKER = "Installed by `agent-inbox install-hook`"
 
+#: Rules for the waiter's own state files: the announce-once watermark and the waiter
+#: lock, legacy and per engine. Anchored globs over our own prefix, so they cover every
+#: engine without naming one — and the legacy files, which were never ignored (#77).
+WAKE_STATE_RULES: tuple[tuple[str, str], ...] = (
+    ("/.agent-mailbox-seen*.json", ".agent-mailbox-seen.json"),
+    ("/.agent-mailbox-wake*.lock", ".agent-mailbox-wake.lock"),
+)
+
+WAKE_STATE_NOTE = (
+    "# agent-inbox: per-machine wake state (what was announced, who is waiting). "
+    "Never commit."
+)
+
 HOOK_NOTE = (
     "# agent-inbox: generated wake hook; carries this machine's interpreter path. "
     "Never commit."
@@ -239,6 +252,30 @@ def is_our_hook(path: Path) -> bool:
     if path.suffix == ".json":
         return "wake-check" in head
     return HOOK_MARKER in head.split("\n", 1)[0]
+
+
+def exposed_wake_state(root: Path) -> list[tuple[Path, str]]:
+    """The waiter's state files at the project root that git is not protecting (#77).
+
+    Written by every wake hook into the project root, and never ignored by us until
+    now — a user's `git add -A` took them. Names alone identify them: the prefix is
+    ours.
+    """
+    if not in_a_repository(root):
+        return []
+    found: dict[Path, str] = {}
+    for pattern in (".agent-mailbox-seen*.json", ".agent-mailbox-wake*.lock"):
+        for path in root.glob(pattern):
+            if not path.is_file():
+                continue
+            if is_staged(path, root):
+                found[path] = "staged"
+            elif is_tracked(path, root):
+                found[path] = "tracked"
+            elif not is_ignored(path, root):
+                found[path] = "unignored"
+    order = {"staged": 0, "tracked": 1, "unignored": 2}
+    return sorted(found.items(), key=lambda pair: (order[pair[1]], str(pair[0])))
 
 
 def exposed_hooks(root: Path) -> list[tuple[Path, str]]:
