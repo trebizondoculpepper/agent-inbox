@@ -347,6 +347,49 @@ def mcp(project: str | None, describe: bool) -> int:
     return 0
 
 
+@cli.group("session")
+def session_group() -> None:
+    """Отдельные сохраняемые адреса сессий и сабагентов."""
+
+
+@session_group.command("mcp")
+def session_mcp() -> None:
+    """Запустить MCP с обязательным context_id в каждом почтовом вызове."""
+    from agent_inbox.session_tools import build_session_server
+
+    build_session_server().run(show_banner=False)
+
+
+@session_group.command("call")
+@click.argument("tool")
+@click.argument("arguments", default="{}")
+def session_call(tool: str, arguments: str) -> None:
+    """Вызвать инструмент почты с JSON-аргументами, как через MCP."""
+    import asyncio
+
+    from fastmcp import Client
+    from fastmcp.exceptions import ToolError
+
+    from agent_inbox.session_tools import build_session_server
+
+    try:
+        values = json.loads(arguments)
+    except ValueError as exc:
+        raise click.BadParameter("Ожидается JSON с аргументами инструмента.") from exc
+    if not isinstance(values, dict):
+        raise click.BadParameter("Аргументы должны быть JSON-объектом.")
+
+    async def call() -> Any:
+        async with Client(build_session_server()) as client:
+            result = await client.call_tool(tool, values)
+            return result.data
+
+    try:
+        _print(asyncio.run(call()))
+    except ToolError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
 @cli.command()
 @click.option("--host", default="127.0.0.1", help="bind address")
 @click.option("--port", default=8090, type=int)
