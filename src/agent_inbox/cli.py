@@ -360,6 +360,15 @@ def session_mcp() -> None:
     build_session_server().run(show_banner=False)
 
 
+@session_group.command("hook")
+@click.option("--engine", type=click.Choice(["codex", "claude"]), required=True)
+def session_hook(engine: str) -> None:
+    """Проверить почту на границе инструментов без ожидания и UI-уведомлений."""
+    from agent_inbox.session_hook import process_hook
+
+    process_hook(engine)
+
+
 @session_group.command("call")
 @click.argument("tool")
 @click.argument("arguments", default="{}")

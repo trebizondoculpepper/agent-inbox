@@ -48,6 +48,8 @@ class SessionMailbox:
         self.hub = hub.rstrip("/")
         self.directory = directory
         self.token = token
+        self.client_type = HubClient
+        self.timeout = 10.0
 
     @classmethod
     def from_env(cls) -> SessionMailbox:
@@ -97,8 +99,9 @@ class SessionMailbox:
             Path(name).unlink(missing_ok=True)
 
     def _checked_client(self, record: dict[str, Any]) -> tuple[HubClient, bool]:
-        client = HubClient(
-            Config(hub=self.hub, name=record["address"], token=self.token), timeout=10
+        client = self.client_type(
+            Config(hub=self.hub, name=record["address"], token=self.token),
+            timeout=self.timeout,
         )
         report = client.remote_doctor()
         you = report.get("you", {})

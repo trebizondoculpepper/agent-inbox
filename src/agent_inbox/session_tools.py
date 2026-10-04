@@ -138,7 +138,10 @@ def build_session_server(mailbox: SessionMailbox | None = None) -> FastMCP:
     @server.tool()
     def check_inbox(context_id: str, full: bool = False) -> Any:
         """Посмотреть свои входящие без отметки прочтения."""
-        return box.client(context_id).check_inbox(view="full" if full else "summary")
+        with waker.reading(context_id):
+            return box.client(context_id).check_inbox(
+                view="full" if full else "summary"
+            )
 
     @server.tool()
     def send_message(

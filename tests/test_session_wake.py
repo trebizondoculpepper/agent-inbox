@@ -125,12 +125,13 @@ def test_queue_uses_only_local_binding_and_static_notice(
     assert len(command) == 6
     notice = command[5]
     assert target["context_id"] in notice
-    assert message["id"].rsplit("/", 1)[-1] in notice
+    assert message["id"].rsplit("/", 1)[-1] not in notice
+    assert len(notice) < 260
     assert "PEER_BODY" not in notice and "PEER_SUBJECT" not in notice
     assert "dangerously" not in notice
     assert "не новый запрос человека" in notice
     assert "GO" in notice
-    assert "agent-inbox session call check_inbox" in notice
+    assert "check_inbox(context_id=" in notice
     assert "agent-post" not in notice and "agent_mail" not in notice
 
 
@@ -237,12 +238,16 @@ def test_six_per_minute_and_later_retry_after_rate_limit(
     allow(box, target)
     monkeypatch.setattr("agent_inbox.session_wake.time.time", lambda: 1000.0)
     messages = [send(box, author, target) for _ in range(7)]
-    outcomes = [
-        SessionWake(box).request(
-            author["context_id"], target["address"], message["id"]
-        )["status"]
-        for message in messages
-    ]
+    outcomes = []
+    for message in messages:
+        outcomes.append(
+            SessionWake(box).request(
+                author["context_id"], target["address"], message["id"]
+            )["status"]
+        )
+        with SessionWake(box).reading(target["context_id"]):
+            box.client(target["context_id"]).check_inbox()
+
     assert outcomes == ["queued"] * 6 + ["rate_limited"]
     assert len(queued) == 6
     monkeypatch.setattr("agent_inbox.session_wake.time.time", lambda: 1061.0)
