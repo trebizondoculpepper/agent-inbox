@@ -82,6 +82,73 @@ class SessionWake:
             raise ClientError("Нужен абсолютный путь к Codex CLI в настройке.")
         return command, {**target, "thread_id": thread_id}
 
+    def configure(self, context_id: str, codex_thread_id: str) -> dict[str, Any]:
+        record = self.box._read(context_id)
+        self.box.client(context_id)
+        if record.get("parent_context") is not None or record.get("engine") not in (
+            "codex",
+            "codex-cli",
+            "codex-desktop",
+        ):
+            raise ClientError("Wake подключает только корневая сессия Codex.")
+        try:
+            thread_id = str(UUID(codex_thread_id))
+        except (ValueError, TypeError, AttributeError) as exc:
+            raise ClientError("Нужен настоящий UUID собственного чата Codex.") from exc
+        with exclusive(
+            self.config_path.with_suffix(".lock"), timeout=5, stale_after=3600
+        ):
+            config = _load(self.config_path)
+            projects = config.get("self_registration_projects")
+            if (
+                config.get("hub") != self.box.hub
+                or not isinstance(projects, list)
+                or not all(isinstance(project, str) for project in projects)
+                or record.get("project") not in projects
+            ):
+                raise ClientError(
+                    "Оператор не разрешил подключение wake в этом проекте."
+                )
+            command = config.get("codex_command")
+            if (
+                not isinstance(command, str)
+                or "\0" in command
+                or not Path(command).is_absolute()
+            ):
+                raise ClientError("Нужен абсолютный путь к Codex CLI в настройке.")
+            targets = config.get("targets")
+            if not isinstance(targets, dict):
+                raise ClientError(
+                    "В настройке отсутствует таблица разрешённых адресов."
+                )
+            binding = {
+                "enabled": True,
+                "backend": "codex_queue",
+                "project": record["project"],
+                "context_id": context_id,
+                "thread_id": thread_id,
+            }
+            for address, target in targets.items():
+                if not isinstance(target, dict):
+                    raise ClientError("Повреждена таблица привязок wake.")
+                try:
+                    occupied = str(UUID(target["thread_id"]))
+                except (KeyError, ValueError, TypeError, AttributeError) as exc:
+                    raise ClientError("Повреждён ID чата в таблице wake.") from exc
+                if address == record["address"]:
+                    if target.get("enabled") is not True or any(
+                        target.get(key) != value for key, value in binding.items()
+                    ):
+                        raise ClientError(
+                            "Существующую привязку может изменить оператор."
+                        )
+                elif occupied == thread_id:
+                    raise ClientError("Этот чат уже связан с другим почтовым адресом.")
+            if record["address"] not in targets:
+                targets[record["address"]] = binding
+                _save(self.config_path, config)
+        return {"supported": True, "backend": "codex_queue", "status": "configured"}
+
     def capability(self, address: str, project: str) -> dict[str, Any]:
         try:
             self._binding(address, project)
