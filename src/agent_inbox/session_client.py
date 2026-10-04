@@ -13,6 +13,36 @@ from agent_inbox.client import ClientError, Config, HubClient, load_global
 from agent_inbox.locking import exclusive
 
 
+def project_group(project: str) -> str:
+    # Адреса приводятся к нижнему регистру, но идентификаторы проектов различаются.
+    encoded = "".join(
+        chr(byte)
+        if 97 <= byte <= 122 or 48 <= byte <= 57 or byte in b"-_."
+        else f"%{byte:02x}"
+        for byte in project.encode("utf-8")
+    )
+    return "project:" + encoded
+
+
+def _membership(profile: dict[str, Any], project: str) -> None:
+    group = project_group(project)
+    groups = set(profile.get("groups") or [])
+    if profile.get("status") == "completed":
+        groups.discard(group)
+    else:
+        groups.add(group)
+    profile["groups"] = sorted(groups)
+
+
+def _display_name(value: str) -> str:
+    name = value.strip()
+    if not name or len(name) > 80 or any(ord(char) < 32 for char in name):
+        raise ClientError(
+            "Имя должно содержать от 1 до 80 символов без перевода строк."
+        )
+    return name
+
+
 class SessionMailbox:
     def __init__(self, hub: str, directory: Path, token: str | None = None) -> None:
         self.hub = hub.rstrip("/")
@@ -93,9 +123,12 @@ class SessionMailbox:
         engine: str,
         worktree: str = "",
         parent_context: str | None = None,
+        display_name: str | None = None,
     ) -> dict[str, Any]:
         if not all(x.strip() for x in (session_key, project, purpose, engine)):
             raise ClientError("Ключ сессии, проект, задача и клиент обязательны.")
+        if display_name is not None:
+            display_name = _display_name(display_name)
         identity = json.dumps([self.hub, session_key], ensure_ascii=False)
         context_id = hashlib.sha256(identity.encode()).hexdigest()
         parent = self._read(parent_context) if parent_context else None
@@ -137,7 +170,19 @@ class SessionMailbox:
                     raise ClientError(
                         "Адрес исчез на сервере. Проверьте его базу данных."
                     )
-                return record
+                actor = client.whois(record["address"])
+                profile = dict(actor.get("profile") or {})
+                before = dict(profile)
+                profile.setdefault("display_name", record["purpose"][:80])
+                if display_name is not None:
+                    profile["display_name"] = display_name
+                _membership(profile, project)
+                if profile != before:
+                    client.update_profile(profile)
+                return record | {
+                    "display_name": profile["display_name"],
+                    "project_group": project_group(project),
+                }
             if not known:
                 client.join(record["address"])
             profile = {
@@ -147,11 +192,16 @@ class SessionMailbox:
                 "worktree": record["worktree"],
                 "parent": record["parent_address"],
                 "status": "active",
+                "display_name": display_name or record["purpose"][:80],
             }
+            _membership(profile, project)
             client.update_profile(profile)
             record["ready"] = True
             self._write(record)
-            return record
+            return record | {
+                "display_name": profile["display_name"],
+                "project_group": project_group(project),
+            }
 
     def client(self, context_id: str) -> HubClient:
         record = self._read(context_id)
@@ -171,4 +221,29 @@ class SessionMailbox:
             actor = client.whois(client.config.name)
             profile = dict(actor.get("profile") or {})
             profile["status"] = status
+            _membership(profile, self._read(context_id)["project"])
+            return client.update_profile(profile)
+
+    def update_profile(
+        self,
+        context_id: str,
+        display_name: str,
+        purpose: str | None = None,
+        worktree: str | None = None,
+    ) -> Any:
+        name = _display_name(display_name)
+        if purpose is not None and not purpose.strip():
+            raise ClientError("Описание задачи не может быть пустым.")
+        with exclusive(
+            self._path(context_id).with_suffix(".lock"), timeout=5, stale_after=3600
+        ):
+            client = self.client(context_id)
+            actor = client.whois(client.config.name)
+            profile = dict(actor.get("profile") or {})
+            profile["display_name"] = name
+            if purpose is not None:
+                profile["purpose"] = purpose
+            if worktree is not None:
+                profile["worktree"] = worktree
+            _membership(profile, self._read(context_id)["project"])
             return client.update_profile(profile)

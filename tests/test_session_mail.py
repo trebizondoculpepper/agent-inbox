@@ -249,7 +249,7 @@ def test_status_preserves_profile_and_resume_preserves_status(
     profile["extra"] = {"test": True}
     client.update_profile(profile)
     updated = box.status(record["context_id"], "completed")
-    assert updated["profile"] == {**profile, "status": "completed"}
+    assert updated["profile"] == {**profile, "status": "completed", "groups": []}
     register(SessionMailbox(HUB, box.directory), "task")
     assert client.whois(record["address"])["profile"] == updated["profile"]
 

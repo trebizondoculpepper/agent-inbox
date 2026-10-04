@@ -1006,6 +1006,16 @@ class Api:
         _refuse_blind_addressing(raw)
         activity = decode_activity(raw)
         note = activity.object
+        payload = raw.get("object", raw)
+        reply_all = (
+            payload.get("replyAll", False) if isinstance(payload, dict) else False
+        )
+        if not isinstance(reply_all, bool):
+            raise HTTPException(status_code=400, detail="replyAll must be a boolean")
+        if reply_all and (not note.in_reply_to or note.to or note.cc):
+            raise HTTPException(
+                status_code=400, detail="replyAll requires a parent and no recipients"
+            )
 
         parent = (
             self.wire.object_id_from(note.in_reply_to) if note.in_reply_to else None
@@ -1016,7 +1026,7 @@ class Api:
             # failure shape we have. House.reply addresses the original sender and
             # adds the `Re:` subject.
             replied = await self.house.reply(
-                caller, parent, note.content, subject=note.summary
+                caller, parent, note.content, subject=note.summary, reply_all=reply_all
             )
             return self.wire.note(replied.record)
 

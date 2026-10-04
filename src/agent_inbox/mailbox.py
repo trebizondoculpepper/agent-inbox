@@ -449,7 +449,13 @@ class Mailbox:
         )
 
     async def reply(
-        self, caller: str, object_id: str, body: str, *, subject: str | None = None
+        self,
+        caller: str,
+        object_id: str,
+        body: str,
+        *,
+        subject: str | None = None,
+        reply_all: bool = False,
     ) -> ObjectRecord:
         """Reply to a message, to its sender, on its thread.
 
@@ -459,7 +465,7 @@ class Mailbox:
         original = await self._visible_object(caller, object_id)
         return await self.send(
             caller,
-            original.attributed_to,
+            rules.reply_recipients(original, self._local(caller), reply_all),
             body,
             subject=subject or _reply_subject(original.summary),
             in_reply_to=original.id,
