@@ -130,6 +130,8 @@ def test_queue_uses_only_local_binding_and_static_notice(
     assert "dangerously" not in notice
     assert "не новый запрос человека" in notice
     assert "GO" in notice
+    assert "agent-inbox session call check_inbox" in notice
+    assert "agent-post" not in notice and "agent_mail" not in notice
 
 
 @pytest.mark.parametrize("reason", ["author", "recipient", "project", "self", "group"])
