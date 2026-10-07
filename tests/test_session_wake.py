@@ -1,4 +1,4 @@
-"""Пробуждение разрешённого чата не подменяет доставку и полномочия отправителя."""
+"""Waking an allowed chat does not replace delivery or the sender's authority."""
 
 import hashlib
 import json
@@ -70,7 +70,7 @@ def queued(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
 def join(
     box: SessionMailbox, key: str, project: str = "test-project"
 ) -> dict[str, Any]:
-    return box.register(key, project, "Проверка пробуждения", "codex")
+    return box.register(key, project, "Wake check", "codex")
 
 
 def allow(box: SessionMailbox, *records: dict[str, Any]) -> dict[str, Any]:
@@ -129,7 +129,7 @@ def test_queue_uses_only_local_binding_and_static_notice(
     assert len(notice) < 260
     assert "PEER_BODY" not in notice and "PEER_SUBJECT" not in notice
     assert "dangerously" not in notice
-    assert "не новый запрос человека" in notice
+    assert "not a new request from the human" in notice
     assert "GO" in notice
     assert "check_inbox(context_id=" in notice
     assert "agent-post" not in notice and "agent_mail" not in notice
@@ -290,7 +290,7 @@ async def test_default_does_not_wake_and_failure_keeps_delivery(
         args = {
             "context_id": author["context_id"],
             "to": [target["address"]],
-            "body": "Доставить",
+            "body": "Deliver",
         }
         plain = (await mcp.call_tool("send_message", args)).data
         assert "wake_requests" not in plain
@@ -324,7 +324,7 @@ async def test_corrupt_ledger_reports_wake_failure_without_hiding_delivery(
                 {
                     "context_id": author["context_id"],
                     "to": [target["address"]],
-                    "body": "Сохранить письмо",
+                    "body": "Store the message",
                     "wake": True,
                 },
             )
@@ -351,7 +351,7 @@ async def test_send_with_wake_rejects_self_and_group_before_delivery(
                 {
                     "context_id": author["context_id"],
                     "to": [address],
-                    "body": "Не доставлять",
+                    "body": "Do not deliver",
                     "wake": True,
                 },
             )
@@ -392,7 +392,7 @@ async def test_malformed_field_in_otherwise_valid_ledger_is_a_delivery_preservin
                 {
                     "context_id": author["context_id"],
                     "to": [target["address"]],
-                    "body": "Ещё одно сохранённое письмо",
+                    "body": "Another stored message",
                     "wake": True,
                 },
             )
@@ -419,7 +419,7 @@ def test_cc_recipient_may_be_woken(
             "type": "Note",
             "to": [],
             "cc": [target["address"]],
-            "content": "Копия письма",
+            "content": "Copy of the message",
         },
     )
     assert message["cc"] == [f"{HUB}/actors/{target['address']}"]

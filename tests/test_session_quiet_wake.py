@@ -1,4 +1,4 @@
-"""Накопившаяся почта вызывает один короткий сигнал до успешного чтения inbox."""
+"""Accumulated mail produces one short signal until the inbox is read successfully."""
 
 import json
 import subprocess
@@ -63,8 +63,8 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
 
 
 def participants(box: SessionMailbox) -> tuple[dict[str, Any], dict[str, Any]]:
-    author = box.register("sender", "test-project", "Отправитель", "codex")
-    target = box.register("receiver", "test-project", "Получатель", "codex")
+    author = box.register("sender", "test-project", "Sender", "codex")
+    target = box.register("receiver", "test-project", "Recipient", "codex")
     box.status(target["context_id"], "completed")
     SessionWake(box).config_path.write_text(
         json.dumps(
@@ -118,7 +118,7 @@ def test_completed_recipient_gets_one_short_notice_without_peer_content(
     assert message["id"].rsplit("/", 1)[-1] not in notice
     assert "PRIVATE_PEER" not in notice
     assert "inbox" in notice
-    assert "не новый запрос человека" in notice and "не новый GO" in notice
+    assert "not a new request from the human" in notice and "not a new GO" in notice
 
 
 @pytest.mark.parametrize("status", ["active", "waiting", None])

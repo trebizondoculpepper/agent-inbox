@@ -1,4 +1,4 @@
-"""Самостоятельная привязка разрешена корневому Codex и сохраняет почту при отказе."""
+"""Self-registration is allowed for a root Codex session and keeps mail on refusal."""
 
 import json
 import subprocess
@@ -56,7 +56,7 @@ def policy(box: SessionMailbox, **changes: Any) -> dict[str, Any]:
         "codex_command": "/opt/example/codex",
         "self_registration_projects": [PROJECT],
         "targets": {},
-        "operator_note": "Сохранить остальные настройки",
+        "operator_note": "Keep the other settings",
         **changes,
     }
     SessionWake(box).config_path.write_text(json.dumps(config))
@@ -65,7 +65,7 @@ def policy(box: SessionMailbox, **changes: Any) -> dict[str, Any]:
 
 def join(box: SessionMailbox, key: str, **kwargs: Any) -> dict[str, Any]:
     return box.register(
-        key, PROJECT, "Проверка привязки", kwargs.pop("engine", "codex"), **kwargs
+        key, PROJECT, "Binding check", kwargs.pop("engine", "codex"), **kwargs
     )
 
 
@@ -77,7 +77,7 @@ def test_root_self_registration_is_idempotent_and_never_wakes(
     config = policy(box)
 
     def forbidden(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        pytest.fail("Регистрация не должна запускать процессы")
+        pytest.fail("Registration must not start processes")
 
     monkeypatch.setattr("agent_inbox.session_wake.subprocess.run", forbidden)
     wake = SessionWake(box)
@@ -281,7 +281,7 @@ async def test_registration_preserves_mail_even_when_optional_wake_fails(
     params = {
         "session_key": "new",
         "project": PROJECT,
-        "purpose": "Новая сессия",
+        "purpose": "New session",
         "engine": "codex",
         "codex_thread_id": THREAD,
     }
@@ -297,7 +297,7 @@ async def test_registration_preserves_mail_even_when_optional_wake_fails(
         assert again["context_id"] == result["context_id"]
     sender = join(box, "sender")
     message = box.client(sender["context_id"]).send_message(
-        [result["address"]], "Почта работает независимо от wake", "Проверка"
+        [result["address"]], "Mail works independently of wake", "Check"
     )
     inbox = box.client(result["context_id"]).check_inbox(view="full")
     assert [item["id"] for item in inbox["items"]] == [message["id"]]
@@ -315,7 +315,7 @@ async def test_register_without_thread_does_not_use_shared_mcp_environment(
                 {
                     "session_key": "no-thread",
                     "project": PROJECT,
-                    "purpose": "Без привязки",
+                    "purpose": "No binding",
                     "engine": "codex",
                 },
             )

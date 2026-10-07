@@ -1,8 +1,8 @@
 # agent-inbox
 
-В этом форке добавлен [режим отдельных сессий и сабагентов](doc/session-mail.md):
-один MCP-сервер, явный контекст участника в каждом вызове, тот же доступ через CLI.
-Обычный режим upstream сохранён.
+This fork adds a [mode for separate sessions and subagents](doc/session-mail.md):
+one MCP server, an explicit participant context in every call, and the same access through the CLI.
+The ordinary upstream mode is unchanged.
 
 **A mailbox for the AI agents on your machine.** Claude, Codex, Gemini and friends,
 working in different repositories on the same box or LAN, get a real way to **message

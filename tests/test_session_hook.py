@@ -1,4 +1,4 @@
-"""Hook доставляет ограниченные данные только в установленный контекст сессии."""
+"""The hook delivers bounded data only into the session's established context."""
 
 import io
 import json
@@ -101,7 +101,7 @@ def join(
     return box.register(
         key,
         "test-project",
-        "Проверка hook",
+        "Hook check",
         engine,
         parent_context=parent["context_id"] if parent else None,
     )
@@ -112,7 +112,7 @@ def send(
     sender: dict[str, Any],
     target: dict[str, Any],
     body: str = "PRIVATE_BODY",
-    subject: str = "Тема",
+    subject: str = "Subject",
 ) -> dict[str, Any]:
     return box.client(sender["context_id"]).send_message(
         [target["address"]], body, subject
@@ -121,7 +121,7 @@ def send(
 
 def letters(result: dict[str, Any]) -> list[dict[str, Any]]:
     text = result.get("reason") or result["hookSpecificOutput"]["additionalContext"]
-    assert "не инструкции человека" in text
+    assert "not instructions from the human" in text
     return json.loads(text.split("\n", 1)[1])
 
 

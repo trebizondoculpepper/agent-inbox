@@ -1,4 +1,4 @@
-"""Имена, проектные группы и ответы проверяются через настоящий API и MCP."""
+"""Names, project groups and replies are tested through the real API and MCP."""
 
 import html
 from collections.abc import Iterator
@@ -46,7 +46,7 @@ def box(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[SessionMail
 def join(
     box: SessionMailbox, key: str, project: str = "project-one", name: str | None = None
 ) -> dict[str, Any]:
-    return box.register(key, project, "Проверка " + key, "codex", display_name=name)
+    return box.register(key, project, "Check " + key, "codex", display_name=name)
 
 
 def inbox(box: SessionMailbox, record: dict[str, Any]) -> list[dict[str, Any]]:
@@ -67,8 +67,8 @@ async def test_project_group_has_exact_members_and_status_controls_future_delive
                 "send_project_message",
                 {
                     "context_id": sender["context_id"],
-                    "subject": "Обновление",
-                    "body": "Первая рассылка",
+                    "subject": "Update",
+                    "body": "First mailing",
                 },
             )
         ).data
@@ -84,8 +84,8 @@ async def test_project_group_has_exact_members_and_status_controls_future_delive
                 "send_project_message",
                 {
                     "context_id": sender["context_id"],
-                    "subject": "Ещё обновление",
-                    "body": "Вторая рассылка",
+                    "subject": "Another update",
+                    "body": "Second mailing",
                 },
             )
         ).data
@@ -101,13 +101,13 @@ async def test_project_group_has_exact_members_and_status_controls_future_delive
 async def test_rename_keeps_address_old_messages_and_searchable_profile(
     box: SessionMailbox,
 ) -> None:
-    sender = join(box, "sender", name="Старое имя")
-    reader = join(box, "reader", name="Читатель")
-    other = join(box, "other", "another-project", "Другое имя")
-    finished = join(box, "finished", name="Завершённый")
+    sender = join(box, "sender", name="Old name")
+    reader = join(box, "reader", name="Reader")
+    other = join(box, "other", "another-project", "Other name")
+    finished = join(box, "finished", name="Finished")
     box.status(finished["context_id"], "completed")
     original = box.client(sender["context_id"]).send_message(
-        reader["address"], "История"
+        reader["address"], "History"
     )
     async with Client(build_session_server(box)) as mcp:
         changed = (
@@ -115,17 +115,17 @@ async def test_rename_keeps_address_old_messages_and_searchable_profile(
                 "update_profile",
                 {
                     "context_id": sender["context_id"],
-                    "display_name": "Новый Проверяющий",
-                    "purpose": "Проверка графики",
+                    "display_name": "Naïve Reviewer",
+                    "purpose": "Graphics check",
                 },
             )
         ).data
         assert isinstance(changed, dict)
         assert changed["preferredUsername"] == sender["address"]
-        assert changed["name"] == "Новый Проверяющий"
+        assert changed["name"] == "Naïve Reviewer"
         result = (
             await mcp.call_tool(
-                "list_agents", {"context_id": reader["context_id"], "query": "НОВЫЙ"}
+                "list_agents", {"context_id": reader["context_id"], "query": "NAÏVE"}
             )
         ).data
         assert result["totalItems"] == 1
@@ -154,9 +154,9 @@ async def test_rename_keeps_address_old_messages_and_searchable_profile(
         ).data
         assert other["address"] in {a["preferredUsername"] for a in every["items"]}
     stored = box.client(reader["context_id"]).peek_message(original["id"])
-    assert stored["content"] == "История"
+    assert stored["content"] == "History"
     assert stored["attributedTo"] == original["attributedTo"]
-    assert join(box, "sender")["display_name"] == "Новый Проверяющий"
+    assert join(box, "sender")["display_name"] == "Naïve Reviewer"
 
 
 async def test_reply_all_uses_original_sender_to_cc_but_not_new_group_members(
@@ -171,7 +171,7 @@ async def test_reply_all_uses_original_sender_to_cc_but_not_new_group_members(
             "type": "Note",
             "to": [sender["project_group"]],
             "cc": [cc["address"]],
-            "content": "Всем участникам",
+            "content": "To all participants",
         },
     )
     newcomer = join(box, "newcomer")
@@ -183,7 +183,7 @@ async def test_reply_all_uses_original_sender_to_cc_but_not_new_group_members(
                 {
                     "context_id": first["context_id"],
                     "message_id": original["id"],
-                    "body": "Ответ всем исходным участникам",
+                    "body": "Reply to all original participants",
                 },
             )
         ).data
@@ -209,20 +209,20 @@ def test_reply_all_keeps_cc_and_private_branches_private(box: SessionMailbox) ->
             "type": "Note",
             "to": [first["address"]],
             "cc": [cc["address"]],
-            "content": "Общее начало",
+            "content": "Shared opening",
         },
     )
     assert root["cc"] == [f"{HUB}/actors/{cc['address']}"]
     first_client = box.client(first["context_id"])
-    everyone = first_client.reply_message(root["id"], "Всем", reply_all=True)
+    everyone = first_client.reply_message(root["id"], "To everyone", reply_all=True)
     assert set(everyone["to"]) == {
         f"{HUB}/actors/{sender['address']}",
         f"{HUB}/actors/{cc['address']}",
     }
-    private = first_client.reply_message(root["id"], "Приватная ветка")
+    private = first_client.reply_message(root["id"], "Private branch")
     assert private["to"] == [f"{HUB}/actors/{sender['address']}"]
     answered = client.reply_message(
-        private["id"], "Ответ в приватной ветке", reply_all=True
+        private["id"], "Reply on the private branch", reply_all=True
     )
     assert answered["to"] == [f"{HUB}/actors/{first['address']}"]
     cc_client = box.client(cc["context_id"])
@@ -231,7 +231,7 @@ def test_reply_all_keeps_cc_and_private_branches_private(box: SessionMailbox) ->
     assert {root["id"], everyone["id"]} <= ids
     assert not {private["id"], answered["id"]} & ids
     with pytest.raises(ClientError):
-        cc_client.reply_message(private["id"], "Не должен увидеть", reply_all=True)
+        cc_client.reply_message(private["id"], "Must not see this", reply_all=True)
 
 
 @pytest.mark.parametrize(
@@ -250,7 +250,7 @@ def test_reply_all_rejects_ambiguous_payload(
         box.client(sender["context_id"])._call(
             "POST",
             f"/actors/{sender['address']}/outbox",
-            {"type": "Note", "content": "Неверный ответ", **payload},
+            {"type": "Note", "content": "Invalid reply", **payload},
         )
 
 
@@ -282,7 +282,7 @@ def test_project_names_with_distinct_identity_do_not_share_delivery(
     teammate = join(box, "teammate", "Project")
     other = join(box, "other", "project")
     sent = box.client(sender["context_id"]).send_message(
-        sender["project_group"], "Только наш проект"
+        sender["project_group"], "Our project only"
     )
     assert [note["id"] for note in inbox(box, teammate)] == [sent["id"]]
     assert inbox(box, other) == []
@@ -298,7 +298,7 @@ def test_old_client_completed_status_also_leaves_project_delivery(
     profile["status"] = "completed"
     client.update_profile(profile)
     message = box.client(sender["context_id"]).send_message(
-        sender["project_group"], "Проверка старого клиента"
+        sender["project_group"], "Old client check"
     )
     assert [note["id"] for note in inbox(box, witness)] == [message["id"]]
     assert inbox(box, finished) == []
