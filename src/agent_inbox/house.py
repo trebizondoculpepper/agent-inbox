@@ -341,7 +341,13 @@ class House:
         return actor
 
     async def reply(
-        self, caller: str, object_id: str, body: str, *, subject: str | None = None
+        self,
+        caller: str,
+        object_id: str,
+        body: str,
+        *,
+        subject: str | None = None,
+        reply_all: bool = False,
     ) -> Sent:
         try:
             original = await self._mailbox.view(caller, object_id)
@@ -359,7 +365,11 @@ class House:
             raise
         sent = await self.send(
             caller,
-            original.attributed_to,
+            rules.reply_recipients(
+                original,
+                addressing.local_name(caller, self._mailbox.hub_name),
+                reply_all,
+            ),
             body,
             # Without this the `Re:` prefix was lost whenever a reply went through the
             # house rather than the mailbox directly.

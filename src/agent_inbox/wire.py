@@ -108,6 +108,7 @@ class Actor(
 
     id: str
     preferred_username: str
+    name: str | None = None
     context: str = AS2_CONTEXT
     type: str = "Service"
     summary: str | None = None
@@ -244,6 +245,7 @@ class Renderer:
         return Actor(
             id=uri,
             preferred_username=record.name,
+            name=str(record.profile.get("display_name") or "") or None,
             type=record.actor_type.value,
             summary=str(record.profile.get("purpose") or "") or None,
             visibility=visibility.read(record.profile).value,

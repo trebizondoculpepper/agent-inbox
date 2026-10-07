@@ -44,6 +44,7 @@
     /* Whose page this is, or "" for the hub-wide tab. Direction is derived from it. */
     this.subject = root.getAttribute("data-subject") || "";
     this.filter = "all";
+    this.labels = JSON.parse(root.getAttribute("data-labels") || "{}");
     this.rows = root.querySelector(".feed-rows");
     this.stateText = root.querySelector(".feed-state");
     this.clockText = root.querySelector(".feed-clock");
@@ -138,6 +139,7 @@
        is what keeps it text. Several recipients get several anchors, because one link
        around "alice, bob" would point at an agent called "alice, bob". */
     var parties = this.otherParty(event, direction).split(",");
+    var labels = this.labels;
     parties.forEach(function (raw, index) {
       var name = raw.trim();
       if (index) who.appendChild(document.createTextNode(", "));
@@ -147,10 +149,23 @@
       }
       var link = document.createElement("a");
       link.href = "/agent/" + encodeURIComponent(name);
-      link.textContent = name;
+      link.textContent = labels[name] || name;
+      link.title = name;
       who.appendChild(link);
     });
     meta.appendChild(who);
+    var self = this;
+    fetch("/agent-labels").then(function (response) {
+      if (!response.ok) throw new Error("labels unavailable");
+      return response.json();
+    }).then(function (fresh) {
+      self.labels = fresh;
+      self.root.querySelectorAll('.feed-who a').forEach(function (link) {
+        var address = decodeURIComponent(link.getAttribute("href").slice(7));
+        if (fresh[address]) link.textContent = fresh[address];
+      });
+    }).catch(function () {});
+
 
     var when = document.createElement("span");
     when.className = "feed-when";

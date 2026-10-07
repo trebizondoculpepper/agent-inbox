@@ -347,6 +347,58 @@ def mcp(project: str | None, describe: bool) -> int:
     return 0
 
 
+@cli.group("session")
+def session_group() -> None:
+    """Separate, persistent addresses for sessions and subagents."""
+
+
+@session_group.command("mcp")
+def session_mcp() -> None:
+    """Run MCP with a required context_id on every mail call."""
+    from agent_inbox.session_tools import build_session_server
+
+    build_session_server().run(show_banner=False)
+
+
+@session_group.command("hook")
+@click.option("--engine", type=click.Choice(["codex", "claude"]), required=True)
+def session_hook(engine: str) -> None:
+    """Check mail at tool boundaries, without waiting and without UI notifications."""
+    from agent_inbox.session_hook import process_hook
+
+    process_hook(engine)
+
+
+@session_group.command("call")
+@click.argument("tool")
+@click.argument("arguments", default="{}")
+def session_call(tool: str, arguments: str) -> None:
+    """Call a mail tool with JSON arguments, as through MCP."""
+    import asyncio
+
+    from fastmcp import Client
+    from fastmcp.exceptions import ToolError
+
+    from agent_inbox.session_tools import build_session_server
+
+    try:
+        values = json.loads(arguments)
+    except ValueError as exc:
+        raise click.BadParameter("Expected JSON with the tool's arguments.") from exc
+    if not isinstance(values, dict):
+        raise click.BadParameter("The arguments must be a JSON object.")
+
+    async def call() -> Any:
+        async with Client(build_session_server()) as client:
+            result = await client.call_tool(tool, values)
+            return result.data
+
+    try:
+        _print(asyncio.run(call()))
+    except ToolError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
 @cli.command()
 @click.option("--host", default="127.0.0.1", help="bind address")
 @click.option("--port", default=8090, type=int)

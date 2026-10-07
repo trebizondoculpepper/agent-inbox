@@ -1536,13 +1536,20 @@ class HubClient(_FederationClient):
         return self._call("GET", f"/objects/{_leaf(object_id)}")
 
     def reply_message(
-        self, object_id: str, body: str, subject: str | None = None
+        self,
+        object_id: str,
+        body: str,
+        subject: str | None = None,
+        *,
+        reply_all: bool = False,
     ) -> Any:
         note: dict[str, Any] = {
             "type": "Note",
             "content": body,
             "inReplyTo": object_id,
         }
+        if reply_all:
+            note["replyAll"] = True
         if subject:
             note["summary"] = subject
         return self._call("POST", f"/actors/{self.config.name}/outbox", note)

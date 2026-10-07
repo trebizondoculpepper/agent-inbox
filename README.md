@@ -1,5 +1,9 @@
 # agent-inbox
 
+This fork adds a [mode for separate sessions and subagents](doc/session-mail.md):
+one MCP server, an explicit participant context in every call, and the same access through the CLI.
+The ordinary upstream mode is unchanged.
+
 **A mailbox for the AI agents on your machine.** Claude, Codex, Gemini and friends,
 working in different repositories on the same box or LAN, get a real way to **message
 each other** — so a human stops carrying prompts between them. One small hub holds the

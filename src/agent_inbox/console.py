@@ -440,7 +440,22 @@ def _leaf(value: Any) -> str:
     return str(value or "").rstrip("/").rsplit("/", 1)[-1]
 
 
-def _mbox_link(name: Any) -> str:
+def _actor_labels(actors: list[dict[str, Any]]) -> dict[str, str]:
+    labels = {}
+    for actor in actors:
+        address = str(actor.get("preferredUsername") or "")
+        profile = actor.get("profile") or {}
+        name = str(actor.get("name") or profile.get("display_name") or "").strip()
+        engine = str(profile.get("engine") or "").strip()
+        labels[address] = (
+            " · ".join(part for part in (name, engine, address[-6:]) if part)
+            if name
+            else address
+        )
+    return labels
+
+
+def _mbox_link(name: Any, label: str | None = None) -> str:
     """A link to an agent's own page, rendered as code. Used all over the tables.
 
     Points at `/agent/{name}` rather than `/mailbox/{name}`: a name should lead to the
@@ -452,10 +467,11 @@ def _mbox_link(name: Any) -> str:
     it would be a diff across the whole file for no change in behaviour.
     """
     safe = html.escape(str(name or ""))
-    return f'<a href="/agent/{safe}"><code>{safe}</code></a>'
+    shown = html.escape(label or str(name or ""))
+    return f'<a href="/agent/{safe}" title="{safe}"><code>{shown}</code></a>'
 
 
-def _who_links(who: str) -> str:
+def _who_links(who: str, labels: dict[str, str] | None = None) -> str:
     """The other party, as links to their own pages.
 
     A name in the feed is the most natural thing in the console to click, and until now
@@ -471,12 +487,15 @@ def _who_links(who: str) -> str:
     if not names:
         return "—"
     return ", ".join(
-        f'<a href="/agent/{html.escape(name)}">{html.escape(name)}</a>'
+        f'<a href="/agent/{html.escape(name)}" title="{html.escape(name)}">'
+        f"{html.escape((labels or {}).get(name, name))}</a>"
         for name in names
     )
 
 
-def _seed_row(note: dict[str, Any], subject: str) -> str:
+def _seed_row(
+    note: dict[str, Any], subject: str, labels: dict[str, str] | None = None
+) -> str:
     """One already-arrived message, in the same shape the live script builds.
 
     Server-rendered so the feed opens full rather than blank, and so both pages work
@@ -509,7 +528,7 @@ def _seed_row(note: dict[str, Any], subject: str) -> str:
         '<span class="feed-rail" aria-hidden="true"></span>'
         '<div class="feed-body"><div class="feed-meta">'
         + (f'<span class="feed-dir">{word}</span>' if word else "")
-        + f'<span class="feed-who">{_who_links(other)}</span>'
+        + f'<span class="feed-who">{_who_links(other, labels)}</span>'
         f'<span class="feed-when" title="{html.escape(when)}">'
         f"{html.escape(_shortdate(when))}</span></div>"
         f'<p class="feed-subject"><a href="/message/{html.escape(oid)}">'
@@ -517,7 +536,9 @@ def _seed_row(note: dict[str, Any], subject: str) -> str:
     )
 
 
-def _who(name: Any, projects: dict[str, str]) -> str:
+def _who(
+    name: Any, projects: dict[str, str], labels: dict[str, str] | None = None
+) -> str:
     """An agent, and the work it is doing — for the overview's flow table.
 
     A flow of bare names answers *who is busy* and not *which piece of work is busy*,
@@ -532,7 +553,7 @@ def _who(name: Any, projects: dict[str, str]) -> str:
     """
     safe = str(name or "")
     project = projects.get(safe, "")
-    link = _mbox_link(safe)
+    link = _mbox_link(safe, (labels or {}).get(safe))
     if not project:
         return link
     shown = (project[:22] + "…") if len(project) > 22 else project
@@ -854,6 +875,16 @@ def build_console(client: HubClient) -> Litestar:
         """
         return client.with_session(request.cookies.get(SESSION_COOKIE))
 
+    def labels_for(request: Request) -> dict[str, str]:
+        try:
+            return _actor_labels(seen_by(request).list_agents().get("items", []))
+        except ClientError:
+            return {}
+
+    @get("/agent-labels", sync_to_thread=True)
+    def agent_labels(request: Request) -> dict[str, str]:
+        return _actor_labels(seen_by(request).list_agents().get("items", []))
+
     def hub_or_none() -> dict[str, Any] | None:
         """The hub descriptor, or ``None`` if it cannot be reached.
 
@@ -964,7 +995,11 @@ def build_console(client: HubClient) -> Litestar:
             for a in actors
         }
         flow_rows = [
-            [_who(frm, projects), _who(to, projects), str(count)]
+            [
+                _who(frm, projects, _actor_labels(actors)),
+                _who(to, projects, _actor_labels(actors)),
+                str(count),
+            ]
             for frm, to, count in list(stats.get("flow", []))[:10]
         ]
         flow = "<h2>Who is talking to whom</h2>" + _table(
@@ -1008,7 +1043,7 @@ def build_console(client: HubClient) -> Litestar:
             rows.append(
                 [
                     dot,
-                    _mbox_link(name),
+                    _mbox_link(name, _actor_labels([a]).get(name)),
                     html.escape(str(profile.get("role", "") or "")),
                     f'<span title="{html.escape(project)}">{html.escape(shown)}</span>'
                     if project
@@ -1042,7 +1077,7 @@ def build_console(client: HubClient) -> Litestar:
             )
             rows.append(
                 [
-                    _mbox_link(name),
+                    _mbox_link(name, _actor_labels([a]).get(name)),
                     html.escape(str(a.get("type", ""))),
                     html.escape((a.get("summary") or "")[:80]),
                     f'<span class="dim">{facts}</span>',
@@ -1089,7 +1124,7 @@ def build_console(client: HubClient) -> Litestar:
             )
         summary = html.escape((info.get("summary") or "") if info else "")
         body = (
-            f"<h2><code>{html.escape(name)}</code></h2>"
+            f"<h2>{html.escape(_actor_labels([info]).get(name, name))}</h2>"
             + (f'<p class="dim">{summary}</p>' if summary else "")
             + '<p class="dim">The operator\'s view. Looking does not consume — '
             "the agent keeps all of its mail.</p>"
@@ -1142,6 +1177,7 @@ def build_console(client: HubClient) -> Litestar:
         *,
         pills: bool = False,
         seed: list[dict[str, Any]] | None = None,
+        labels: dict[str, str] | None = None,
     ) -> str:
         """The live feed's markup. One component, mounted by both pages.
 
@@ -1164,7 +1200,7 @@ def build_console(client: HubClient) -> Litestar:
         connected" would be a guess, and a page that opens by guessing right is a page
         that will one day open by guessing wrong.
         """
-        rows = "".join(_seed_row(n, subject) for n in reversed(seed or []))
+        rows = "".join(_seed_row(n, subject, labels) for n in reversed(seed or []))
         empty_hidden = " hidden" if rows else ""
         filters = (
             '<div class="feed-pills" role="group" aria-label="Filter by direction">'
@@ -1178,7 +1214,8 @@ def build_console(client: HubClient) -> Litestar:
         )
         return (
             f'<div class="feed" data-live data-state="reconnecting" '
-            f'data-subject="{html.escape(subject)}">'
+            f'data-subject="{html.escape(subject)}" '
+            f'data-labels="{html.escape(json.dumps(labels or {}))}">'
             '<div class="feed-head">'
             '<span class="feed-lamp" aria-hidden="true"></span>'
             '<span class="feed-state">Reconnecting</span>'
@@ -1247,7 +1284,7 @@ def build_console(client: HubClient) -> Litestar:
                 api=client.config.base,
                 signed_in=_signed_in(request),
             )
-        body = "<h2>Realtime</h2>" + _feed(seed=items)
+        body = "<h2>Realtime</h2>" + _feed(seed=items, labels=labels_for(request))
         return Response(
             _page("Realtime", body, hub, "/realtime"), media_type=MediaType.HTML
         )
@@ -1301,7 +1338,7 @@ def build_console(client: HubClient) -> Litestar:
 
         summary = html.escape(str(info.get("summary") or ""))
         body = (
-            f"<h2><code>{html.escape(name)}</code></h2>"
+            f"<h2>{html.escape(_actor_labels([info]).get(name, name))}</h2>"
             + (f'<p class="dim">{summary}</p>' if summary else "")
             + _panel("Known to the hub", "Recorded by the hub itself", observed)
             + _panel(
@@ -1320,6 +1357,7 @@ def build_console(client: HubClient) -> Litestar:
                 subject=name,
                 pills=True,
                 seed=list(reversed(_newest_first(received, sent))),
+                labels=labels_for(request),
             )
             + f'<p class="foot">Received mail on its own is at '
             f'<a href="/mailbox/{html.escape(name)}">/mailbox/{html.escape(name)}</a>.'
@@ -2362,7 +2400,7 @@ def build_console(client: HubClient) -> Litestar:
         nodes = [
             {
                 "id": n,
-                "label": n,
+                "label": _actor_labels(actors).get(n, n),
                 "value": sent.get(n, 0) + 1,
                 "recent": recent.get(n, False),
             }
@@ -3116,6 +3154,7 @@ def build_console(client: HubClient) -> Litestar:
             static_asset,
             events,
             realtime,
+            agent_labels,
             agent_page,
             mailbox,
             message,

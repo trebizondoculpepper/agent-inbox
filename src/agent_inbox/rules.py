@@ -21,6 +21,19 @@ from agent_inbox.records import ActorRecord, ObjectRecord
 #: Reserved audience meaning every actor on this mailbox (scenario 6).
 EVERYONE = "everyone"
 
+
+def reply_recipients(
+    original: ObjectRecord, caller: str, reply_all: bool = False
+) -> tuple[str, ...]:
+    if not reply_all:
+        return (original.attributed_to,)
+    # The original message's recipients are fixed; new group members do not get the
+    # reply.
+    return tuple(
+        sorted({original.attributed_to, *original.to, *original.cc} - {caller})
+    )
+
+
 # ---------------------------------------------------------------- membership
 
 
@@ -36,6 +49,12 @@ def group_memberships(actors: Iterable[ActorRecord]) -> Mapping[str, frozenset[s
         if actor.is_group:
             members.setdefault(actor.name, set())
         for group in actor.profile.get("groups", ()) or ():
+            # An old client may complete its task without updating the group list.
+            if (
+                str(group).startswith("project:")
+                and actor.profile.get("status") == "completed"
+            ):
+                continue
             members.setdefault(str(group), set()).add(actor.name)
     return {group: frozenset(names) for group, names in members.items()}
 
