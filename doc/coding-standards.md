@@ -234,6 +234,17 @@ For Streamlit apps (`eunrg-pgops-streamlit`, `eunrg-sumo-streamlit`, etc.):
 
 ---
 
+## 18. Language: English
+
+All code and everything written alongside it is in **English**: identifiers, comments, docstrings, log messages, user-facing strings (CLI output, error messages, MCP tool descriptions, onboarding prompts), documentation, tests and test data, and commit messages.
+
+- **Why:** every maintainer and reviewer must be able to read every line. Text a reviewer cannot read cannot be reviewed — and in this project that matters for safety, not only style: tool descriptions and prompts are instructions to agents, so an unreadable one is an unreviewed instruction.
+- **Exception:** test data whose purpose is to exercise non-English text (Unicode case-folding, homoglyphs, right-to-left marks) may use it, with a comment saying why. Prefer non-English letters inside English words where that is enough to test the behaviour — `"Naïve Reviewer"` exercises non-ASCII case-folding without a second language.
+- **Vendored third-party files** are left as they are.
+- **Contributions** in another language are welcome as ideas, but are asked to be submitted in English before review.
+
+---
+
 ## Project-specific overrides
 
 This document is the canonical baseline. Each project's `AGENTS.md` may add project-specific rules but should not contradict this baseline. If a project needs to override a rule (e.g. a legacy library that requires `print()`), document the override and the reason in that project's `AGENTS.md`.

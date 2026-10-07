@@ -75,6 +75,10 @@ The points that shape this codebase:
 - **Immutable data** where practical (`Config` is frozen with slots).
 - **pytest** in `/tests`; **ruff** for lint+format; **pyright** for types; **uv** for
   everything.
+- **English only.** Code, comments, docstrings, user-facing strings, tool descriptions,
+  documentation, tests and commit messages are written in English
+  ([coding standards §18](doc/coding-standards.md#18-language-english)). Test data that
+  deliberately exercises non-English text is the one exception, and says so.
 
 Project-specific overrides to the baseline are recorded here. One today: the broadened
 `except Exception:` boundaries above, which the charter's Exception Policy sets out in
