@@ -8,6 +8,7 @@ mail in a single SQLite file: **no broker, no external services.**
 [![CI](https://github.com/salimfadhley/agent-inbox/actions/workflows/ci.yml/badge.svg)](https://github.com/salimfadhley/agent-inbox/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.14%2B-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/trebizondoculpepper/agent-inbox?utm_source=oss&utm_medium=github&utm_campaign=trebizondoculpepper%2Fagent-inbox&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 
 ---
 
