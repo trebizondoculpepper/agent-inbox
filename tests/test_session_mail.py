@@ -1,4 +1,4 @@
-"""Несколько контекстов используют настоящий API через один MCP без общей личности."""
+"""Several contexts use the real API through one MCP, without a shared identity."""
 
 import asyncio
 import json
@@ -52,7 +52,7 @@ def box(api_bridge: TestClient, tmp_path: Path) -> SessionMailbox:
 
 
 def register(box: SessionMailbox, key: str, **kwargs: Any) -> dict[str, Any]:
-    return box.register(key, "test-project", "Проверка связи", "codex", **kwargs)
+    return box.register(key, "test-project", "Connection check", "codex", **kwargs)
 
 
 def test_resume_and_children_preserve_separate_addresses(box: SessionMailbox) -> None:
@@ -68,13 +68,13 @@ def test_resume_and_children_preserve_separate_addresses(box: SessionMailbox) ->
     profile = box.client(child["context_id"]).whois(child["address"])["profile"]
     assert profile["parent"] == root["address"]
     assert profile["project"] == "test-project"
-    with pytest.raises(ClientError, match="другому контексту"):
+    with pytest.raises(ClientError, match="another task context"):
         register(box, "codex-child")
-    with pytest.raises(ClientError, match="том же проекте"):
+    with pytest.raises(ClientError, match="same project"):
         box.register(
             "bad-child",
             "another-project",
-            "Проверка",
+            "Check",
             "claude",
             parent_context=root["context_id"],
         )
@@ -95,7 +95,7 @@ async def test_one_mcp_keeps_parallel_senders_and_read_receipts_separate(
                 "register_session",
                 session_key=key,
                 project="test-project",
-                purpose="Проверка",
+                purpose="Check",
                 engine="codex",
             )
 
@@ -109,13 +109,13 @@ async def test_one_mcp_keeps_parallel_senders_and_read_receipts_separate(
                 "send_message",
                 context_id=first_id,
                 to=[sender["address"]],
-                body="Первый",
+                body="First",
             ),
             tool(
                 "send_message",
                 context_id=second_id,
                 to=[sender["address"]],
-                body="Второй",
+                body="Second",
             ),
         )
         assert {note["attributedTo"] for note in messages} == {
@@ -126,7 +126,7 @@ async def test_one_mcp_keeps_parallel_senders_and_read_receipts_separate(
             "send_message",
             context_id=sender["context_id"],
             to=[first["address"], second["address"]],
-            body="Общее письмо",
+            body="Shared message",
         )
         for context_id in (first_id, second_id):
             inbox = await tool("check_inbox", context_id=context_id, full=True)
@@ -141,7 +141,7 @@ async def test_one_mcp_keeps_parallel_senders_and_read_receipts_separate(
             "reply_message",
             context_id=second_id,
             message_id=broadcast["id"],
-            body="Ответ",
+            body="Reply",
         )
         assert reply["attributedTo"] == f"{HUB}/actors/{second['address']}"
         assert reply["inReplyTo"] == broadcast["id"]
@@ -158,10 +158,10 @@ def test_lost_join_response_resumes_the_saved_pending_actor(
     def lost(client: HubClient, name: str | None = None) -> Any:
         original(client, name)
         attempts.append(client.config.name)
-        raise ClientError("Ответ потерян после успешного join")
+        raise ClientError("Response lost after a successful join")
 
     monkeypatch.setattr(HubClient, "join", lost)
-    with pytest.raises(ClientError, match="Ответ потерян"):
+    with pytest.raises(ClientError, match="Response lost"):
         register(box, "retry")
     pending_files = list(box.directory.glob("*.json"))
     assert len(pending_files) == 1
@@ -191,11 +191,11 @@ def test_concurrent_registration_of_one_key_is_idempotent(box: SessionMailbox) -
 
 def test_unknown_or_wrong_hub_context_never_falls_back(box: SessionMailbox) -> None:
     known = register(box, "known")
-    with pytest.raises(ClientError, match="отсутствует"):
+    with pytest.raises(ClientError, match="is missing"):
         box.client("0" * 64)
-    with pytest.raises(ClientError, match="Некорректный context_id"):
+    with pytest.raises(ClientError, match="Invalid context_id"):
         box.client("../known")
-    with pytest.raises(ClientError, match="другому серверу"):
+    with pytest.raises(ClientError, match="different mail server"):
         SessionMailbox("http://other.invalid", box.directory).client(
             known["context_id"]
         )
@@ -216,9 +216,9 @@ def test_bound_token_is_rejected_before_join_and_before_existing_context_use(
         return report
 
     monkeypatch.setattr(HubClient, "remote_doctor", bound)
-    with pytest.raises(ClientError, match="другому участнику"):
+    with pytest.raises(ClientError, match="different participant"):
         register(box, "new")
-    with pytest.raises(ClientError, match="другому участнику"):
+    with pytest.raises(ClientError, match="different participant"):
         box.client(known["context_id"])
     assert api_bridge.get("/actors").json()["totalItems"] == before
 
@@ -268,7 +268,7 @@ def test_cli_uses_same_context_without_touching_legacy_config(
     args = {
         "session_key": "cli",
         "project": "test-project",
-        "purpose": "Проверка",
+        "purpose": "Check",
         "engine": "claude",
     }
     assert main(["session", "call", "register_session", json.dumps(args)]) == 0

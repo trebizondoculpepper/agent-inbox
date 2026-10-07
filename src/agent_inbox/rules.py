@@ -27,7 +27,8 @@ def reply_recipients(
 ) -> tuple[str, ...]:
     if not reply_all:
         return (original.attributed_to,)
-    # Состав исходного письма зафиксирован; новые члены группы не получают ответ.
+    # The original message's recipients are fixed; new group members do not get the
+    # reply.
     return tuple(
         sorted({original.attributed_to, *original.to, *original.cc} - {caller})
     )
@@ -48,7 +49,7 @@ def group_memberships(actors: Iterable[ActorRecord]) -> Mapping[str, frozenset[s
         if actor.is_group:
             members.setdefault(actor.name, set())
         for group in actor.profile.get("groups", ()) or ():
-            # Старый клиент может завершить задачу, не обновив список групп.
+            # An old client may complete its task without updating the group list.
             if (
                 str(group).startswith("project:")
                 and actor.profile.get("status") == "completed"

@@ -1,4 +1,4 @@
-"""Сохраняемые контексты задач для нескольких участников одного клиента."""
+"""Persistent task contexts for several participants of one client."""
 
 import hashlib
 import json
@@ -14,7 +14,7 @@ from agent_inbox.locking import exclusive
 
 
 def project_group(project: str) -> str:
-    # Адреса приводятся к нижнему регистру, но идентификаторы проектов различаются.
+    # Addresses are lowercased, but project identifiers are case-sensitive.
     encoded = "".join(
         chr(byte)
         if 97 <= byte <= 122 or 48 <= byte <= 57 or byte in b"-_."
@@ -37,9 +37,7 @@ def _membership(profile: dict[str, Any], project: str) -> None:
 def _display_name(value: str) -> str:
     name = value.strip()
     if not name or len(name) > 80 or any(ord(char) < 32 for char in name):
-        raise ClientError(
-            "Имя должно содержать от 1 до 80 символов без перевода строк."
-        )
+        raise ClientError("The name must be 1 to 80 characters, with no line breaks.")
     return name
 
 
@@ -54,7 +52,7 @@ class SessionMailbox:
         shared = load_global()
         hub = os.environ.get("AGENT_INBOX_HUB") or shared.get("hub")
         if not hub:
-            raise ClientError("Задайте AGENT_INBOX_HUB для общего сервера почты.")
+            raise ClientError("Set AGENT_INBOX_HUB to the shared mail server.")
         directory = Path(
             os.environ.get(
                 "AGENT_INBOX_SESSIONS_DIR",
@@ -66,22 +64,22 @@ class SessionMailbox:
 
     def _path(self, context_id: str) -> Path:
         if not re.fullmatch(r"[a-f0-9]{64}", context_id):
-            raise ClientError("Некорректный context_id. Используйте register_session.")
+            raise ClientError("Invalid context_id. Use register_session.")
         return self.directory / f"{context_id}.json"
 
     def _read(self, context_id: str) -> dict[str, Any]:
         try:
             value = json.loads(self._path(context_id).read_text())
         except (OSError, ValueError) as exc:
-            raise ClientError("Контекст отсутствует или повреждён.") from exc
+            raise ClientError("The context is missing or corrupt.") from exc
         if not isinstance(value, dict) or value.get("context_id") != context_id:
-            raise ClientError("Некорректный файл контекста.")
+            raise ClientError("Invalid context file.")
         if value.get("hub") != self.hub:
-            raise ClientError("Контекст принадлежит другому серверу почты.")
+            raise ClientError("The context belongs to a different mail server.")
         if not isinstance(value.get("address"), str) or not re.fullmatch(
             r"a_[a-f0-9]{32}", value["address"]
         ):
-            raise ClientError("Некорректный адрес в контексте.")
+            raise ClientError("Invalid address in the context.")
         return value
 
     def _write(self, record: dict[str, Any]) -> None:
@@ -105,14 +103,17 @@ class SessionMailbox:
         mode = report.get("hub", {}).get("authMode")
         verified = you.get("verified")
         if mode not in {"off", "warn", "enforce"}:
-            raise ClientError("Сервер не подтвердил режим проверки личности.")
+            raise ClientError("The server did not confirm its identity-check mode.")
         if verified not in {None, "*", record["address"]}:
-            raise ClientError("Токен принадлежит другому участнику. Нужен общий токен.")
+            raise ClientError(
+                "The token belongs to a different participant. "
+                "A shared token is required."
+            )
         if mode == "enforce" and verified not in {"*", record["address"]}:
-            raise ClientError("Сервер не подтвердил credentials этого контекста.")
+            raise ClientError("The server did not confirm this context's credentials.")
         known = you.get("known")
         if not isinstance(known, bool):
-            raise ClientError("Сервер не подтвердил наличие адреса.")
+            raise ClientError("The server did not confirm that the address exists.")
         return client, known
 
     def register(
@@ -126,17 +127,17 @@ class SessionMailbox:
         display_name: str | None = None,
     ) -> dict[str, Any]:
         if not all(x.strip() for x in (session_key, project, purpose, engine)):
-            raise ClientError("Ключ сессии, проект, задача и клиент обязательны.")
+            raise ClientError("Session key, project, task and client are required.")
         if display_name is not None:
             display_name = _display_name(display_name)
         identity = json.dumps([self.hub, session_key], ensure_ascii=False)
         context_id = hashlib.sha256(identity.encode()).hexdigest()
         parent = self._read(parent_context) if parent_context else None
         if parent and (not parent.get("ready") or parent.get("project") != project):
-            raise ClientError("Родитель должен быть зарегистрирован в том же проекте.")
+            raise ClientError("The parent must be registered in the same project.")
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         path = self._path(context_id)
-        # Блокировка покрывает HTTP-вызовы и освобождается после сбоя.
+        # The lock covers the HTTP calls and is released after a failure.
         with exclusive(path.with_suffix(".lock"), timeout=5, stale_after=3600):
             if path.exists():
                 record = self._read(context_id)
@@ -148,7 +149,9 @@ class SessionMailbox:
                         "parent_context": parent_context,
                     }.items()
                 ):
-                    raise ClientError("Ключ уже принадлежит другому контексту задачи.")
+                    raise ClientError(
+                        "The key already belongs to another task context."
+                    )
             else:
                 record = {
                     "context_id": context_id,
@@ -162,13 +165,14 @@ class SessionMailbox:
                     "worktree": worktree,
                     "ready": False,
                 }
-                # Сохранённое до HTTP имя позволяет восстановить потерянный ответ.
+                # The name saved before the HTTP call lets a lost response be recovered.
                 self._write(record)
             client, known = self._checked_client(record)
             if record["ready"]:
                 if not known:
                     raise ClientError(
-                        "Адрес исчез на сервере. Проверьте его базу данных."
+                        "The address has disappeared from the "
+                        "server. Check its database."
                     )
                 actor = client.whois(record["address"])
                 profile = dict(actor.get("profile") or {})
@@ -206,10 +210,10 @@ class SessionMailbox:
     def client(self, context_id: str) -> HubClient:
         record = self._read(context_id)
         if not record.get("ready"):
-            raise ClientError("Регистрация не завершена. Повторите register_session.")
+            raise ClientError("Registration is incomplete. Repeat register_session.")
         client, known = self._checked_client(record)
         if not known:
-            raise ClientError("Контекст не найден на сервере.")
+            raise ClientError("The context was not found on the server.")
         return client
 
     def status(
@@ -233,7 +237,7 @@ class SessionMailbox:
     ) -> Any:
         name = _display_name(display_name)
         if purpose is not None and not purpose.strip():
-            raise ClientError("Описание задачи не может быть пустым.")
+            raise ClientError("The task description cannot be empty.")
         with exclusive(
             self._path(context_id).with_suffix(".lock"), timeout=5, stale_after=3600
         ):
