@@ -1,3 +1,4 @@
+import shlex
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
@@ -87,7 +88,7 @@ def test_resolver_uses_the_same_clean_install_command_the_prompt_advertises() ->
         return subprocess.CompletedProcess(list(command), 0, "", "")
 
     verify_resolver(
-        "agent-inbox[clients]>=1.2.3",
+        prompt_install_for_version("1.2.3"),
         runner=runner,
         attempts=1,
         timeout=42.0,
@@ -95,17 +96,41 @@ def test_resolver_uses_the_same_clean_install_command_the_prompt_advertises() ->
 
     assert seen == [
         (
-            [
-                "uv",
-                "tool",
-                "install",
-                "--upgrade",
-                "--refresh",
-                "--no-cache",
-                "agent-inbox[clients]>=1.2.3",
-            ],
+            list(prompt_install_for_version("1.2.3").command),
             42.0,
         )
+    ]
+
+
+def test_release_gate_runs_the_exact_commands_it_logs(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    seen: list[tuple[str, ...]] = []
+
+    def runner(
+        command: Sequence[str], timeout: float
+    ) -> subprocess.CompletedProcess[str]:
+        seen.append(tuple(command))
+        return subprocess.CompletedProcess(list(command), 0, "", "")
+
+    with caplog.at_level("INFO", logger="agent_inbox.release_gate"):
+        assert main(["--version", "1.2.3", "--attempts", "1"], runner=runner) == 0
+
+    prompt = prompt_install_for_version("1.2.3")
+    artifact = release_artifact_install_for_version("1.2.3")
+    assert seen == [prompt.command, artifact.command]
+    assert all("--python" in command for command in seen)
+    announced = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "agent_inbox.release_gate"
+        and record.getMessage().startswith(
+            ("prompt floor advertises ", "release artifact requires ")
+        )
+    ]
+    assert announced == [
+        f"prompt floor advertises {prompt.requirement} via {shlex.join(seen[0])}",
+        f"release artifact requires {artifact.requirement} via {shlex.join(seen[1])}",
     ]
 
 
@@ -127,7 +152,7 @@ def test_resolver_blocks_prompt_deploy_when_index_has_not_caught_up() -> None:
 
     with pytest.raises(ReleaseGateError) as got:
         verify_resolver(
-            "agent-inbox[clients]>=9.9.9",
+            release_artifact_install_for_version("9.9.9"),
             runner=runner,
             attempts=3,
             delay=0.5,
@@ -135,11 +160,8 @@ def test_resolver_blocks_prompt_deploy_when_index_has_not_caught_up() -> None:
         )
 
     problem = str(got.value)
-    assert "agent-inbox[clients]>=9.9.9" in problem
-    assert (
-        "uv tool install --upgrade --refresh --no-cache "
-        "'agent-inbox[clients]>=9.9.9'" in problem
-    )
+    assert "agent-inbox[clients]==9.9.9" in problem
+    assert "uv tool install --upgrade --python " in problem
     assert "agent-inbox 9.9.9 was not found" in problem
     assert len(commands) == 3
     assert sleeps == [0.5, 0.5]

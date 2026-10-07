@@ -261,7 +261,7 @@ def run_command(
 
 
 def verify_resolver(
-    requirement: str,
+    install: PromptInstall,
     *,
     runner: Runner = run_command,
     attempts: int = 20,
@@ -269,7 +269,7 @@ def verify_resolver(
     timeout: float = 180.0,
     sleep: Sleeper = time.sleep,
 ) -> None:
-    """Verify a clean uv tool install can resolve the prompt's requirement."""
+    """Verify a clean uv tool install using the command advertised by the gate."""
     if attempts < 1:
         raise ReleaseGateError("resolver attempts must be at least 1")
     if delay < 0:
@@ -277,7 +277,8 @@ def verify_resolver(
     if timeout <= 0:
         raise ReleaseGateError("resolver timeout must be positive")
 
-    command = install_command(requirement)
+    requirement = install.requirement
+    command = install.command
     last_error = ""
     for attempt in range(1, attempts + 1):
         try:
@@ -397,7 +398,7 @@ def main(
             )
             if not args.skip_install:
                 verify_resolver(
-                    prompt_install.requirement,
+                    prompt_install,
                     runner=runner,
                     attempts=args.attempts,
                     delay=args.delay,
@@ -430,7 +431,7 @@ def main(
             )
             if not args.skip_install:
                 verify_resolver(
-                    artifact_install.requirement,
+                    artifact_install,
                     runner=runner,
                     attempts=args.attempts,
                     delay=args.delay,
