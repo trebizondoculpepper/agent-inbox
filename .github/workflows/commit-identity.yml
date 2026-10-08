@@ -1,0 +1,95 @@
+name: Commit identity
+
+# Refuses commits made under an email domain the owner has barred from this repository:
+# author, committer, Co-authored-by and Signed-off-by trailers, and the tagger of a pushed
+# tag.
+#
+# The barred domains are not written here. This repository is public, and naming them in
+# a workflow would publish exactly the association the check exists to keep out. They live
+# in the repository secret BLOCKED_COMMIT_EMAIL_DOMAINS (comma-separated, e.g.
+# "example.com,example.org"), which GitHub also masks in the logs. A run without the secret
+# fails: a check that cannot see its list must not pass.
+#
+# Pull requests use pull_request_target so the secret is available for a fork's pull
+# request. That is safe here only because nothing from the pull request is executed: its
+# commits are fetched as objects and read with `git log`, and this script comes from the
+# base branch.
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["**"]
+  pull_request_target:
+
+permissions:
+  contents: read
+
+jobs:
+  commit-identity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch the pull request's commits (as data only)
+        if: github.event_name == 'pull_request_target'
+        run: git fetch --no-tags origin "+refs/pull/${{ github.event.pull_request.number }}/head:refs/check/pr"
+
+      - name: Refuse barred email domains
+        env:
+          BLOCKED: ${{ secrets.BLOCKED_COMMIT_EMAIL_DOMAINS }}
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          REF: ${{ github.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BLOCKED// /}" ]; then
+            echo "::error::Secret BLOCKED_COMMIT_EMAIL_DOMAINS is not set; refusing to pass without a list."
+            exit 1
+          fi
+
+          # The commits this event introduces, and nothing older.
+          if [ "$EVENT" = "pull_request_target" ]; then
+            range=("$BASE_SHA..refs/check/pr")
+          elif [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            # A new branch or tag: whatever no other branch already has.
+            range=("$AFTER" --not --exclude="$REF" --exclude="refs/remotes/origin/${REF#refs/heads/}" --remotes=origin)
+          else
+            range=("$BEFORE..$AFTER")
+          fi
+
+          # One line per identity: <sha> <field> <email>.
+          {
+            git log --format='%H author %ae%n%H committer %ce' "${range[@]}"
+            git log --format='%H%x1f%(trailers:key=Co-authored-by,key=Signed-off-by,valueonly,separator=%x1f)' "${range[@]}" |
+              while IFS= read -r line; do
+                sha=${line%%$'\x1f'*}
+                grep -oE '<[^>]+>' <<<"${line#*$'\x1f'}" | tr -d '<>' | sed "s/^/$sha trailer /" || true
+              done
+            if [[ "$REF" == refs/tags/* ]] && [ "$(git cat-file -t "$REF")" = tag ]; then
+              echo "$(git rev-parse "$REF") tagger $(git for-each-ref --format='%(taggeremail)' "$REF" | tr -d '<>')"
+            fi
+          } > identities.txt
+
+          echo "Checked $(cut -d' ' -f1 identities.txt | sort -u | wc -l) commit(s)."
+          bad=0
+          IFS=',' read -ra domains <<<"$BLOCKED"
+          while read -r sha field email; do
+            address=$(tr '[:upper:]' '[:lower:]' <<<"$email")
+            for domain in "${domains[@]}"; do
+              domain=$(tr '[:upper:]' '[:lower:]' <<<"${domain// /}")
+              [ -n "$domain" ] || continue
+              if [[ "$address" == *"@$domain" || "$address" == *".$domain" ]]; then
+                echo "::error::$sha: $field email is under a barred domain."
+                bad=1
+              fi
+            done
+          done < identities.txt
+          if [ "$bad" -ne 0 ]; then
+            echo "Rewrite these commits with an allowed identity (git commit --amend --reset-author, or git rebase -i) and push again."
+            exit 1
+          fi
