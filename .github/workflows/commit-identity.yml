@@ -56,8 +56,15 @@ jobs:
           if [ "$EVENT" = "pull_request_target" ]; then
             range=("$BASE_SHA..refs/check/pr")
           elif [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
-            # A new branch or tag: whatever no other branch already has.
-            range=("$AFTER" --not --exclude="$REF" --exclude="refs/remotes/origin/${REF#refs/heads/}" --remotes=origin)
+            # A new branch or tag: whatever no other branch or tag already has. The
+            # pushed ref itself (and its remote-tracking copy) must be left out, or the
+            # new commits would hide behind themselves and nothing would be checked.
+            others=()
+            while IFS= read -r other; do others+=("$other"); done < <(
+              git for-each-ref --format='%(refname)' refs/remotes/origin refs/tags |
+                grep -vxF -e "refs/remotes/origin/${REF#refs/heads/}" -e "$REF" || true
+            )
+            range=("$AFTER" --not "${others[@]}")
           else
             range=("$BEFORE..$AFTER")
           fi
