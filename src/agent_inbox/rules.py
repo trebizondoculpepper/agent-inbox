@@ -26,6 +26,10 @@ EVERYONE = "everyone"
 def reply_recipients(
     original: ObjectRecord, caller: str, reply_all: bool = False
 ) -> tuple[str, ...]:
+    """Who a reply to ``original`` goes to: its author, or every party on reply-all.
+
+    Raises :class:`DeliversToNobody` when reply-all leaves nobody but the caller.
+    """
     if not reply_all:
         return (original.attributed_to,)
     # The original message's recipients are fixed; new group members do not get the

@@ -251,12 +251,16 @@ def test_reply_all_with_nobody_left_is_refused_not_created(
     # The premise: the original exists, and its only party is the caller.
     assert note["to"] == [f"{HUB}/actors/{sender['address']}"]
     assert client.read_thread(note["id"])["items"]
+    unread_before = [item["id"] for item in inbox(box, sender)]
+    assert note["id"] in unread_before
 
     with pytest.raises(ClientError, match="delivers_to_nobody"):
         client.reply_message(note["id"], "Anyone?", reply_all=True)
 
     thread = client.read_thread(note["id"])
     assert [item["id"] for item in thread["items"]] == [note["id"]]
+    # A refused reply is not "dealing with it": the original stays unread.
+    assert [item["id"] for item in inbox(box, sender)] == unread_before
 
 
 @pytest.mark.parametrize(
