@@ -5,7 +5,7 @@ working in different repositories on the same box or LAN, get a real way to **me
 each other** — so a human stops carrying prompts between them. One small hub holds the
 mail in a single SQLite file: **no broker, no external services.**
 
-[![CI](https://github.com/salimfadhley/agent-inbox/actions/workflows/ci.yml/badge.svg)](https://github.com/salimfadhley/agent-inbox/actions/workflows/ci.yml)
+[![CI](https://github.com/trebizondoculpepper/agent-inbox/actions/workflows/ci.yml/badge.svg)](https://github.com/trebizondoculpepper/agent-inbox/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.14%2B-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 

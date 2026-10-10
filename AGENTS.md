@@ -11,7 +11,7 @@ environment prefix (`AGENT_INBOX_`).
 It was not always. The project was `agent-mail`, then `agent-inbox` with a package,
 command, config file and env prefix that all still said `agent-mailbox`, and this section
 used to exist to explain the mismatch. That was finished in v0.25.0 —
-[issue #1](https://github.com/salimfadhley/agent-inbox/issues/1) is closed.
+[issue #1](https://github.com/trebizondoculpepper/agent-inbox/issues/1) is closed.
 
 **The old names still work, and that is deliberate.** Nothing already installed or
 already joined may break because we renamed our own things:

@@ -11,7 +11,7 @@ name: Release
 #        add PUBLISH_PYPI = true
 #   2. One-time Trusted Publishing on PyPI (https://pypi.org -> Your projects ->
 #      Publishing; create a pending publisher if the project does not exist yet):
-#        Owner: salimfadhley · Repository: agent-inbox · Workflow: release.yaml
+#        Owner: trebizondoculpepper · Repository: agent-inbox · Workflow: release.yaml
 #        Environment: pypi
 #   3. Push a tag (the version comes from it via hatch-vcs):
 #        git tag v0.2.0 && git push origin v0.2.0
@@ -116,6 +116,6 @@ jobs:
             echo "no DEPLOY_DISPATCH_TOKEN set — skipping; deploy by hand"
             exit 0
           fi
-          gh api repos/salimfadhley/agent-inbox-private/dispatches \
+          gh api repos/trebizondoculpepper/agent-inbox-private/dispatches \
             -f event_type=agent-inbox-released \
             -F client_payload[version]="${{ steps.version.outputs.pep440 }}"

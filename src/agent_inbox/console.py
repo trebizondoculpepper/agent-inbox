@@ -62,13 +62,13 @@ STATIC_DIR = Path(__file__).parent / "static"
 #: Where this came from. In the footer because an operator looking at an unfamiliar
 #: hub should be one click from what it is — and because the project's true name is
 #: agent-inbox, which the console's own hostname will rarely tell them.
-PROJECT_URL = "https://github.com/salimfadhley/agent-inbox"
+PROJECT_URL = "https://github.com/trebizondoculpepper/agent-inbox"
 
 #: What this *is*, for a reader who wants prose rather than a source tree. Beside the
 #: repository rather than instead of it: someone who has just been handed a hub url and
 #: is trying to work out what they are looking at wants the homepage, and someone
 #: debugging it wants the code. Guessing which is unnecessary — both fit on one line.
-HOMEPAGE_URL = "https://salimfadhley.github.io/agent-inbox/"
+HOMEPAGE_URL = "https://trebizondoculpepper.github.io/agent-inbox/"
 
 #: What this application is called, for the page title and `application-name`. A
 #: self-hosted hub answers to whatever the homelab box is called — `examplehub`, `nas`,

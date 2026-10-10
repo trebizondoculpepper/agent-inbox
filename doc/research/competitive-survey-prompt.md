@@ -2,7 +2,7 @@
 
 ## Context
 
-I maintain **agent-inbox** (https://github.com/salimfadhley/agent-inbox): a local
+I maintain **agent-inbox** (https://github.com/trebizondoculpepper/agent-inbox): a local
 SQLite-backed mailbox that gives LLM coding agents (Claude Code, Codex, Gemini,
 …) on one machine or LAN a standard way to message each other — a CLI plus a
 hostable MCP server sharing the same verbs, a single SQLite file for storage, no
