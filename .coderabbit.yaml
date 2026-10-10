@@ -3,3 +3,10 @@ knowledge_base:
     filePatterns:
       - files: "doc/coding-standards.md"
         applyTo: "**/*.py"
+
+reviews:
+  pre_merge_checks:
+    # The coding standards ask for type annotations and comments that say why, not a
+    # docstring on every function; the default 80% threshold warned on #89.
+    docstrings:
+      mode: "off"

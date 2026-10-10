@@ -81,8 +81,8 @@ def _identifies_nobody(address: ipaddress.IPv4Address) -> bool:
 #: name *agent-inbox*, not anybody's installation of it — the same reason the repository
 #: url has always been in the console footer.
 OURS = (
-    "github.com/salimfadhley/agent-inbox",
-    "salimfadhley.github.io/agent-inbox",
+    "github.com/trebizondoculpepper/agent-inbox",
+    "trebizondoculpepper.github.io/agent-inbox",
     "pypi.org",
     "hub.docker.com",
     "ghcr.io",
@@ -252,8 +252,8 @@ def test_the_guard_can_actually_fail() -> None:
 def test_it_permits_what_the_project_legitimately_uses() -> None:
     """The paired negative. A guard that flags everything is switched off."""
     for benign in (
-        "https://github.com/salimfadhley/agent-inbox",
-        "https://salimfadhley.github.io/agent-inbox/",
+        "https://github.com/trebizondoculpepper/agent-inbox",
+        "https://trebizondoculpepper.github.io/agent-inbox/",
         "http://mail-host.local:8080",
         "http://alpha.localhost:9000",
         "https://elsewhere.example/actors/ludmila_coe",
