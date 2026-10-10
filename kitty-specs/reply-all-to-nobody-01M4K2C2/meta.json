@@ -1,0 +1,16 @@
+{
+  "created_at": "2026-10-10T12:00:00+00:00",
+  "flattened": false,
+  "friendly_name": "Reply-all to nobody is refused",
+  "mission_id": "01M4K2C2WC0JE7974W79963SM5",
+  "mission_number": null,
+  "mission_slug": "reply-all-to-nobody-01M4K2C2",
+  "mission_type": "software-dev",
+  "pr_bound": true,
+  "purpose_context": "Reply-all computes its recipients as the original's author, to and cc, minus the caller. When the caller was the only party to the original, that set is empty, and an empty recipient list skips the send-time check that refuses an audience reaching nobody, because that check only examines names that were addressed. The hub stored the reply and answered 201. This mission refuses it with the error the hub already uses for mail that would reach nobody.",
+  "purpose_tldr": "A reply-all with nobody left to receive it is refused with delivers_to_nobody instead of being stored and reported as sent.",
+  "slug": "reply-all-to-nobody-01M4K2C2",
+  "source_description": "GitHub issue #88",
+  "target_branch": "main",
+  "vcs": "git"
+}

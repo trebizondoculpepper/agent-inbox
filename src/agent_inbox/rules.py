@@ -16,6 +16,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import replace
 from typing import NamedTuple
 
+from agent_inbox.exceptions import DeliversToNobody
 from agent_inbox.records import ActorRecord, ObjectRecord
 
 #: Reserved audience meaning every actor on this mailbox (scenario 6).
@@ -25,13 +26,26 @@ EVERYONE = "everyone"
 def reply_recipients(
     original: ObjectRecord, caller: str, reply_all: bool = False
 ) -> tuple[str, ...]:
+    """Who a reply to ``original`` goes to: its author, or every party on reply-all.
+
+    Raises :class:`DeliversToNobody` when reply-all leaves nobody but the caller.
+    """
     if not reply_all:
         return (original.attributed_to,)
     # The original message's recipients are fixed; new group members do not get the
     # reply.
-    return tuple(
+    recipients = tuple(
         sorted({original.attributed_to, *original.to, *original.cc} - {caller})
     )
+    if not recipients:
+        # Reply-all to a note whose only party was the caller (#88). An empty `to`
+        # skips the send-time "reaches nobody" check, which only looks at names that
+        # were addressed, and was stored and answered 201 for a reply sent to no one.
+        raise DeliversToNobody(
+            "this reply would reach nobody — you were the only party to the original. "
+            "Nothing was sent; reply to someone by name instead"
+        )
+    return recipients
 
 
 # ---------------------------------------------------------------- membership

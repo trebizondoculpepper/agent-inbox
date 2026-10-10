@@ -234,6 +234,35 @@ def test_reply_all_keeps_cc_and_private_branches_private(box: SessionMailbox) ->
         cc_client.reply_message(private["id"], "Must not see this", reply_all=True)
 
 
+def test_reply_all_with_nobody_left_is_refused_not_created(
+    box: SessionMailbox,
+) -> None:
+    """Issue #88: reply-all to a note whose only party is yourself reaches nobody.
+
+    It used to answer 201 with a stored reply addressed to no one.
+    """
+    sender = join(box, "sender")
+    client = box.client(sender["context_id"])
+    note = client._call(
+        "POST",
+        f"/actors/{sender['address']}/outbox",
+        {"type": "Note", "to": [sender["address"]], "content": "Note to self"},
+    )
+    # The premise: the original exists, and its only party is the caller.
+    assert note["to"] == [f"{HUB}/actors/{sender['address']}"]
+    assert client.read_thread(note["id"])["items"]
+    unread_before = [item["id"] for item in inbox(box, sender)]
+    assert note["id"] in unread_before
+
+    with pytest.raises(ClientError, match="delivers_to_nobody"):
+        client.reply_message(note["id"], "Anyone?", reply_all=True)
+
+    thread = client.read_thread(note["id"])
+    assert [item["id"] for item in thread["items"]] == [note["id"]]
+    # A refused reply is not "dealing with it": the original stays unread.
+    assert [item["id"] for item in inbox(box, sender)] == unread_before
+
+
 @pytest.mark.parametrize(
     "payload",
     [
